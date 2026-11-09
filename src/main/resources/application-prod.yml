@@ -1,0 +1,49 @@
+# Produccion. Todo lo sensible llega por variable de entorno y la sintaxis
+# :? aborta el arranque si falta, en vez de levantar con valores vacios.
+
+spring:
+  datasource:
+    url: jdbc:mariadb://${DB_HOST:db}:${DB_PORT:3306}/${DB_NAME:uncapitulomas}?useUnicode=true&characterEncoding=utf8
+    username: ${DB_USER:?falta DB_USER}
+    password: ${DB_PASSWORD:?falta DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:?falta REDIS_PASSWORD}
+  jpa:
+    show-sql: false
+
+security:
+  jwt-secret: ${JWT_SECRET:?falta JWT_SECRET}
+
+metadata:
+  # Wikidata devuelve resultados vacios sin User-Agent identificable y puede
+  # bloquear la IP. Debe llevar un contacto real.
+  user-agent: ${METADATA_USER_AGENT:?falta METADATA_USER_AGENT}
+
+logging:
+  level:
+    root: WARN
+    org.rudahee.uncapitulomas: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Nada mas. /actuator/** esta en denyAll salvo health, pero exponer
+        # menos superficie es gratis.
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+springdoc:
+  # La documentacion describe toda la API, incluidos los endpoints publicos.
+  # No hace falta servirla desde internet.
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

@@ -1,0 +1,91 @@
+# Importar desde application.yml con:
+#   spring.config.import: "classpath:metadata.yml"
+#
+# NO renombrar a application-metadata.yml: ese patron es application-{perfil}.yml
+# y el fichero solo se cargaria con el perfil "metadata" activo.
+
+metadata:
+  # Obligatorio. Wikidata devuelve resultados vacios sin User-Agent identificable
+  # y puede bloquear la IP; MusicBrainz y MangaDex lo exigen igualmente.
+  user-agent: "MiLista/1.0 (+https://tudominio.es; tu@correo.es)"
+
+  connect-timeout: 3s
+  read-timeout: 10s
+  max-wait-for-permit: 5s
+  search-timeout: 6s
+  max-retries: 2
+
+  # Limites tomados de la documentacion de cada servicio, con margen deliberado.
+  # Todos son POR IP, no por clave: si despliegas tras NAT compartido, bajalos.
+  providers:
+
+    # Documentado: al menos 20 llamadas cada 10 s.
+    tvmaze:
+      base-url: "https://api.tvmaze.com"
+      capacity: 15
+      period: 10s
+      max-concurrent: 4
+      default-cooldown: 15s
+      priority: 90        # unica fuente con lista real de episodios
+
+    # Documentado: 90 req/min. Superarlo cuesta 1 minuto de timeout completo,
+    # por eso el enfriamiento es de 60 s: reintentar antes es inutil.
+    anilist:
+      base-url: "https://graphql.anilist.co"
+      capacity: 60
+      period: 60s
+      max-concurrent: 3
+      default-cooldown: 60s
+      priority: 85
+
+    # Documentado: ~20 llamadas/min, "aproximadamente" y "sujeto a cambios".
+    # No es un contrato, asi que nos quedamos en 12.
+    itunes:
+      base-url: "https://itunes.apple.com"
+      capacity: 12
+      period: 60s
+      max-concurrent: 2
+      default-cooldown: 60s
+      priority: 60
+
+    # ~5 req/s por IP. Solo metadatos: no se tocan endpoints de lectura de
+    # capitulos, que si estan restringidos desde 2026.
+    mangadex:
+      base-url: "https://api.mangadex.org"
+      capacity: 3
+      period: 1s
+      max-concurrent: 2
+      default-cooldown: 30s
+      priority: 80        # gana a AniList en manga: da la lista real de capitulos
+
+    openlibrary:
+      base-url: "https://openlibrary.org"
+      capacity: 10
+      period: 10s
+      max-concurrent: 2
+      default-cooldown: 30s
+      priority: 70
+
+    # WDQS limita a 5 consultas paralelas por IP.
+    # Prioridad minima: es la red de seguridad, no la fuente preferida.
+    wikidata:
+      base-url: "https://query.wikidata.org/sparql"
+      capacity: 10
+      period: 10s
+      max-concurrent: 3
+      default-cooldown: 60s
+      priority: 10
+
+    # Segundo host de Wikidata (Action API, para la busqueda textual).
+    # Bucket propio pero limites igual de conservadores: el cupo es de Wikimedia.
+    wikidata-action:
+      base-url: "https://www.wikidata.org/w/api.php"
+      capacity: 10
+      period: 10s
+      max-concurrent: 3
+      default-cooldown: 60s
+      priority: 10
+
+spring:
+  cache:
+    type: redis

@@ -1,0 +1,22 @@
+# Importar desde application.yml junto con metadata.yml:
+#   spring.config.import: ["classpath:metadata.yml", "classpath:security.yml"]
+
+security:
+  # NUNCA en el repositorio. Variable de entorno o secreto del orquestador.
+  # Minimo 32 caracteres: HS256 exige 256 bits y Nimbus falla al arrancar
+  # si la clave es mas corta. Generar con: openssl rand -base64 48
+  jwt-secret: ${JWT_SECRET:?falta JWT_SECRET}
+  issuer: un-capitulo-mas
+  access-token-ttl: 15m
+  refresh-token-ttl: 30d
+  auth-rate-limit: 10
+  auth-rate-window: 5m
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never

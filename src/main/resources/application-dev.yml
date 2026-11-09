@@ -1,0 +1,49 @@
+# Desarrollo local. Contrasenyas de juguete a proposito: esta configuracion
+# nunca debe llegar a un servidor.
+
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:3306/uncapitulomas?useUnicode=true&characterEncoding=utf8
+    username: uncapitulomas
+    password: cambiame
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jpa:
+    # Ver el SQL que genera Hibernate es lo primero que quieres cuando algo
+    # va lento. En produccion llenaria el disco.
+    show-sql: true
+    properties:
+      hibernate.format_sql: true
+
+security:
+  jwt-secret: ${JWT_SECRET:clave-de-desarrollo-solo-para-local-32-min}
+  # Corta a proposito: si el refresco esta roto, quieres enterarte en un minuto
+  # y no despues de quince.
+  access-token-ttl: 1m
+  auth-rate-limit: 100
+
+storage:
+  covers:
+    base-path: ./data/covers
+
+scheduling:
+  # Que el refresco nocturno se dispare mientras depuras es molesto y ademas
+  # gasta cuota real de los proveedores.
+  enabled: false
+
+logging:
+  level:
+    org.rudahee.uncapitulomas: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE   # muestra los valores de los parametros
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

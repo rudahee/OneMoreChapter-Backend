@@ -1,0 +1,17 @@
+# Todo lo que no hace falta para compilar. Sin esto, el contexto de build se
+# lleva el directorio build/ y la cache de Gradle, que pesan cientos de megas.
+.git
+.gitignore
+.idea
+*.iml
+build/
+.gradle/
+data/
+backups/
+contracts/
+*.md
+compose.yaml
+.env
+.env.*
+Dockerfile
+.dockerignore

@@ -1,0 +1,13 @@
+# Importado desde application.yml. No renombrar a application-security.yml:
+# ese patron es de perfiles y solo cargaria con el perfil "security" activo.
+
+security:
+  # jwt-secret NO va aqui: lo define cada perfil, porque en dev vale una clave
+  # de juguete y en prod tiene que venir del entorno.
+  # Minimo 32 caracteres: HS256 exige 256 bits y Nimbus falla al arrancar si
+  # es mas corta. Generar con: openssl rand -base64 48
+  issuer: un-capitulo-mas
+  access-token-ttl: 15m
+  refresh-token-ttl: 30d
+  auth-rate-limit: 10
+  auth-rate-window: 5m

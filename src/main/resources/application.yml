@@ -1,0 +1,88 @@
+# Configuracion base, comun a todos los entornos. Lo que cambia entre maquinas
+# vive en application-dev.yml y application-prod.yml.
+
+spring:
+  application:
+    name: uncapitulomas
+
+  config:
+    import:
+      - "classpath:metadata.yml"
+      - "classpath:security.yml"
+
+  profiles:
+    default: dev
+
+  mvc:
+    # Sin esto, las excepciones estandar de Spring MVC no devuelven
+    # ProblemDetail y GlobalExceptionHandler solo cubre la mitad de los casos.
+    problemdetails:
+      enabled: true
+
+  jackson:
+    default-property-inclusion: non_null
+
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    driver-class-name: org.mariadb.jdbc.Driver
+    hikari:
+      pool-name: uncapitulomas-pool
+      # 10 conexiones para dos usuarios es de sobra. Un pool grande no acelera
+      # nada y consume memoria en el lado de MariaDB.
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # El esquema lo gobierna Flyway. validate detecta divergencias al
+      # arrancar en vez de descubrirlas con una consulta rota en produccion.
+      ddl-auto: validate
+    properties:
+      # Importar una serie larga son cientos de inserts de media_unit.
+      # Sin batching, cientos de viajes de red.
+      hibernate.jdbc.batch_size: 50
+      hibernate.order_inserts: true
+      hibernate.order_updates: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+  shutdown: graceful
+  error:
+    # El detalle util va en el ProblemDetail. La pagina de error por defecto
+    # no debe filtrar trazas ni mensajes internos.
+    include-message: never
+    include-stacktrace: never
+
+storage:
+  covers:
+    enabled: true
+    base-path: ${COVERS_PATH:/var/lib/uncapitulomas/covers}
+    public-path: /media/covers
+    max-bytes: 5242880
+    timeout: 10s
+
+scheduling:
+  enabled: true
+  # El limitador de metadata ya frena las llamadas; esto evita que una tanda
+  # se alargue horas si el catalogo crece.
+  refresh-batch-size: 50
+  refresh-interval: P1D
+  # No se borran al caducar: un token expirado es la unica pista si hay que
+  # investigar una reutilizacion despues de que salte la alarma.
+  token-retention: P7D
+  invitation-retention: P30D
+  orphan-covers:
+    enabled: false
+
+logging:
+  level:
+    org.rudahee.uncapitulomas: INFO

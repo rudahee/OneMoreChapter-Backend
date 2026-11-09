@@ -1,0 +1,134 @@
+# Backend de Un Capítulo Más.
+# Asume un Traefik ya en marcha con una red externa llamada "proxy" y un
+# certResolver de Let's Encrypt configurado. Ajusta ambos nombres abajo si en
+# tu servidor se llaman de otra forma.
+
+services:
+
+  db:
+    image: mariadb:11.4
+    container_name: uncapitulomas-db
+    restart: unless-stopped
+    command:
+      # utf8mb4 a nivel de servidor no es opcional: guardáis títulos nativos
+      # en japonés y sin esto se convierten en interrogantes.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # Ajusta a la baja si el VPS va justo de RAM y tienes más apps encima.
+      - --innodb-buffer-pool-size=256M
+      - --max-connections=50
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?falta DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME:-uncapitulomas}
+      MARIADB_USER: ${DB_USER:-uncapitulomas}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD}
+      MARIADB_AUTO_UPGRADE: "1"
+      TZ: Europe/Madrid
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [internal]
+    # Sin "ports" y solo en la red interna: aunque tengas más apps en el
+    # servidor, ninguna alcanza esta base de datos.
+
+  redis:
+    image: redis:7-alpine
+    container_name: uncapitulomas-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --maxmemory
+      - 192mb
+      # Caché pura: si se llena, que descarte lo viejo en vez de empezar a
+      # rechazar escrituras.
+      - --maxmemory-policy
+      - allkeys-lru
+      - --requirepass
+      - ${REDIS_PASSWORD:?falta REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "$$REDIS_PASSWORD", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: uncapitulomas:${APP_VERSION:-latest}
+    container_name: uncapitulomas-api
+    restart: unless-stopped
+    # La JVM como PID 1 no reparte señales ni recoge huérfanos.
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-uncapitulomas}
+      DB_USER: ${DB_USER:-uncapitulomas}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET}
+      METADATA_USER_AGENT: ${METADATA_USER_AGENT:?falta METADATA_USER_AGENT}
+      TZ: Europe/Madrid
+    volumes:
+      # Las portadas descargadas deben sobrevivir a cada despliegue.
+      - covers-data:/var/lib/uncapitulomas/covers
+    deploy:
+      resources:
+        limits:
+          # La JVM lee este límite y dimensiona el heap al 75 %.
+          memory: 640M
+    networks: [internal, proxy]
+    labels:
+      - traefik.enable=true
+      # Obligatorio con varias redes: sin esto Traefik puede intentar
+      # alcanzar el contenedor por la IP de la red interna y dar 504.
+      - traefik.docker.network=proxy
+
+      - traefik.http.routers.uncapitulomas.rule=Host(`${APP_HOST:?falta APP_HOST}`)
+      - traefik.http.routers.uncapitulomas.entrypoints=websecure
+      - traefik.http.routers.uncapitulomas.tls=true
+      - traefik.http.routers.uncapitulomas.tls.certresolver=${CERT_RESOLVER:-letsencrypt}
+      - traefik.http.services.uncapitulomas.loadbalancer.server.port=8080
+
+      # Cabeceras de seguridad. Prefijadas con el nombre del proyecto para no
+      # chocar con los middlewares de tus otras apps.
+      - traefik.http.middlewares.ucm-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.ucm-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.ucm-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.ucm-headers.headers.frameDeny=true
+      - traefik.http.middlewares.ucm-headers.headers.browserXssFilter=true
+
+      # Comprime las respuestas de la API. Las portadas ya son binarios
+      # comprimidos, así que ahí no aporta, pero el JSON sí baja bastante.
+      - traefik.http.middlewares.ucm-compress.compress=true
+
+      - traefik.http.routers.uncapitulomas.middlewares=ucm-headers,ucm-compress
+
+volumes:
+  db-data:
+  redis-data:
+  covers-data:
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true
